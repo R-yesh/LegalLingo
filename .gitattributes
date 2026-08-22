@@ -1,0 +1,20 @@
+# Normalize line endings to LF in the repository, regardless of the
+# committing platform's checkout settings (core.autocrlf etc). This stops
+# Windows/Unix line-ending churn from showing up as noisy diffs.
+* text=auto eol=lf
+
+# Binary-ish or generated files: leave line endings alone.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+
+# Windows-specific scripts should keep CRLF.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
