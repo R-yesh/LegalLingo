@@ -7,6 +7,7 @@ import { DocumentHealthMeter } from '../components/analysis/DocumentHealthMeter'
 import { CitizenChecklist } from '../components/analysis/CitizenChecklist';
 import { PartiesCard } from '../components/analysis/PartiesCard';
 import { ExtractedInfoGrid } from '../components/analysis/ExtractedInfoGrid';
+import { ClausesList } from '../components/analysis/ClausesList';
 import { DocumentAnalysisSkeleton } from '../components/common/SkeletonLoader';
 import { Button } from '../components/common/Button';
 import { generatePDF } from '../services/pdfService';
@@ -36,6 +37,7 @@ export const AnalysisPage: React.FC = () => {
     isLoading, 
     error, 
     toggleChecklist,
+    updateExtractedField,
     setIsAIChatOpen 
   } = useDocument();
   const navigate = useNavigate();
@@ -245,7 +247,17 @@ export const AnalysisPage: React.FC = () => {
       </div>
 
       {/* Extracted Key Information Grid */}
-      <ExtractedInfoGrid fields={documentAnalysis.extractedFields} />
+      <ExtractedInfoGrid
+        fields={documentAnalysis.extractedFields}
+        onUpdateField={(fieldId, value) => updateExtractedField(fieldId, value)}
+      />
+
+      {/* All Clauses, Simplified */}
+      <ClausesList
+        clauses={documentAnalysis.clauses}
+        documentId={currentDocument.id}
+        language={language}
+      />
 
       {/* Attention Items Section */}
       <section className="space-y-4">

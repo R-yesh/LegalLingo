@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { LegalDocument, DocumentAnalysis, Clause, UserProfile, AIMessage } from '../types';
-import { getDocument, getDocumentAnalysis, updateChecklistStatus, getDocuments } from '../services/documentService';
+import { getDocument, getDocumentAnalysis, updateChecklistStatus, updateExtractedFieldValue, getDocuments } from '../services/documentService';
 import { SAMPLE_DOCUMENT, SAMPLE_ANALYSIS, DEFAULT_USER_PROFILE } from '../data/sampleDocument';
 
 
@@ -22,6 +22,7 @@ interface DocumentContextType {
   loadSampleAgreement: () => Promise<string>;
   refreshDocumentsList: () => Promise<void>;
   toggleChecklist: (checklistItemId: string) => Promise<void>;
+  updateExtractedField: (fieldId: string, value: string) => Promise<void>;
   updateProfile: (profile: Partial<UserProfile>) => void;
   addAIMessage: (msg: AIMessage) => void;
   clearAIMessages: () => void;
@@ -120,6 +121,25 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   }, [currentDocumentId, documentAnalysis]);
 
+  const updateExtractedField = useCallback(async (fieldId: string, value: string) => {
+    if (!currentDocumentId || !documentAnalysis) return;
+
+    const field = documentAnalysis.extractedFields.find(f => f.id === fieldId);
+    if (!field) return;
+
+    await updateExtractedFieldValue(currentDocumentId, fieldId, value);
+
+    setDocumentAnalysis(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        extractedFields: prev.extractedFields.map(f =>
+          f.id === fieldId ? { ...f, value } : f
+        ),
+      };
+    });
+  }, [currentDocumentId, documentAnalysis]);
+
   const updateProfile = useCallback((updates: Partial<UserProfile>) => {
     setUserProfile(prev => ({ ...prev, ...updates }));
   }, []);
@@ -157,6 +177,7 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         loadSampleAgreement,
         refreshDocumentsList,
         toggleChecklist,
+        updateExtractedField,
         updateProfile,
         addAIMessage,
         clearAIMessages,

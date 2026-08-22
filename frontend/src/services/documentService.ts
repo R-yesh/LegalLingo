@@ -181,3 +181,26 @@ export async function updateChecklistStatus(
   }
   return false;
 }
+
+export async function updateExtractedFieldValue(
+  documentId: string,
+  fieldId: string,
+  value: string
+): Promise<boolean> {
+  const analysis = await getDocumentAnalysis(documentId);
+  if (!analysis) return false;
+
+  const field = analysis.extractedFields.find(f => f.id === fieldId);
+  if (field) {
+    field.value = value;
+    // The interactive sample document is a static reference — edits apply
+    // in-memory for the session but are never written to localStorage.
+    if (documentId !== SAMPLE_DOCUMENT.id) {
+      const stored = getStoredAnalyses();
+      stored[documentId] = analysis;
+      saveStoredAnalyses(stored);
+    }
+    return true;
+  }
+  return false;
+}
