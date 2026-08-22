@@ -1,0 +1,13 @@
+{
+  "venvPath": "backend",
+  "venv": ".venv",
+  "extraPaths": [
+    "backend",
+    "backend/.venv/Lib/site-packages"
+  ],
+  "include": [
+    "backend"
+  ],
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": false
+}
