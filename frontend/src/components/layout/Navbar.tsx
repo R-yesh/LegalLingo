@@ -2,31 +2,41 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../context/LanguageContext';
 import { useDocument } from '../../context/DocumentContext';
+import { useAuth } from '../../context/AuthContext';
 import { LanguageSelector } from '../common/LanguageSelector';
 import { Button } from '../common/Button';
 import { checkBackendHealth } from '../../services/api';
-import { 
-  FileText, 
-  UploadCloud, 
-  FolderGit2, 
-  Sparkles, 
-  Award, 
-  User, 
-  Menu, 
+import {
+  FileText,
+  UploadCloud,
+  FolderGit2,
+  Sparkles,
+  Award,
+  User,
+  Menu,
   X,
   Compass,
-  Activity
+  Activity,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export const Navbar: React.FC = () => {
   const { t } = useLanguage();
   const { loadSampleAgreement } = useDocument();
+  const { isSupabaseConfigured, session, profile, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSampleLoading, setIsSampleLoading] = useState(false);
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null);
+
+  const handleSignOut = async () => {
+    await signOut();
+    setMobileMenuOpen(false);
+    navigate('/');
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -139,7 +149,7 @@ export const Navbar: React.FC = () => {
           {/* Right Header Actions */}
           <div className="hidden sm:flex items-center space-x-3">
             <LanguageSelector />
-            
+
             <Button
               onClick={handleTrySample}
               variant="outline"
@@ -149,6 +159,32 @@ export const Navbar: React.FC = () => {
             >
               {t.trySample}
             </Button>
+
+            {isSupabaseConfigured && (
+              session ? (
+                <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+                  <span className="text-xs font-semibold text-charcoal max-w-[140px] truncate" title={session.user.email}>
+                    {profile?.display_name || session.user.email}
+                  </span>
+                  <button
+                    onClick={handleSignOut}
+                    className="p-2 rounded-xl text-steel hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                    title="Sign out"
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  to="/login"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-steel hover:text-charcoal hover:bg-slate-100/70 transition-all"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign in</span>
+                </Link>
+              )
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -191,6 +227,34 @@ export const Navbar: React.FC = () => {
               );
             })}
           </div>
+
+          {isSupabaseConfigured && (
+            <div className="pt-3 border-t border-slate-100">
+              {session ? (
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <span className="text-sm font-semibold text-charcoal truncate" title={session.user.email}>
+                    {profile?.display_name || session.user.email}
+                  </span>
+                  <button
+                    onClick={handleSignOut}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-steel hover:text-rose-600 hover:bg-rose-50 transition-colors flex-shrink-0"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-steel hover:text-charcoal hover:bg-slate-100 transition-all"
+                >
+                  <LogIn className="w-5 h-5 text-brand-600" />
+                  <span>Sign in</span>
+                </Link>
+              )}
+            </div>
+          )}
 
           <div className="pt-3 border-t border-slate-100">
             <Button
