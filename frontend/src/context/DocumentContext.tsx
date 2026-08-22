@@ -3,6 +3,7 @@ import { LegalDocument, DocumentAnalysis, Clause, UserProfile, AIMessage } from 
 import { getDocument, getDocumentAnalysis, updateChecklistStatus, getDocuments } from '../services/documentService';
 import { SAMPLE_DOCUMENT, SAMPLE_ANALYSIS, DEFAULT_USER_PROFILE } from '../data/sampleDocument';
 
+
 interface DocumentContextType {
   documents: LegalDocument[];
   currentDocumentId: string | null;
@@ -16,6 +17,7 @@ interface DocumentContextType {
   aiMessages: AIMessage[];
   isAIChatOpen: boolean;
   loadDocument: (docId: string) => Promise<boolean>;
+  loadDocumentWithAnalysis: (doc: LegalDocument, analysis: DocumentAnalysis) => void;
   selectClause: (clauseId: string | null) => void;
   loadSampleAgreement: () => Promise<string>;
   refreshDocumentsList: () => Promise<void>;
@@ -81,6 +83,14 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setCurrentClauseId(clauseId);
   }, []);
 
+  const loadDocumentWithAnalysis = useCallback((doc: LegalDocument, analysis: DocumentAnalysis) => {
+    setCurrentDocumentId(doc.id);
+    setCurrentDocument(doc);
+    setDocumentAnalysis(analysis);
+    setError(null);
+    setIsLoading(false);
+  }, []);
+
   const loadSampleAgreement = useCallback(async (): Promise<string> => {
     setIsLoading(true);
     setCurrentDocumentId(SAMPLE_DOCUMENT.id);
@@ -142,6 +152,7 @@ export const DocumentProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         aiMessages,
         isAIChatOpen,
         loadDocument,
+        loadDocumentWithAnalysis,
         selectClause,
         loadSampleAgreement,
         refreshDocumentsList,

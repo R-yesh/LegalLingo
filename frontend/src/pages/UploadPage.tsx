@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useDocument } from '../context/DocumentContext';
 import { uploadDocument } from '../services/documentService';
+import { LegalDocument, DocumentAnalysis } from '../types';
 import { Button } from '../components/common/Button';
 import { formatBytes } from '../lib/utils';
 import { 
@@ -21,7 +22,7 @@ import { cn } from '../lib/utils';
 
 export const UploadPage: React.FC = () => {
   const { t } = useLanguage();
-  const { loadDocument, loadSampleAgreement, refreshDocumentsList } = useDocument();
+  const { loadDocumentWithAnalysis, loadSampleAgreement, refreshDocumentsList } = useDocument();
   const navigate = useNavigate();
 
   const [primaryFile, setPrimaryFile] = useState<File | null>(null);
@@ -91,20 +92,19 @@ export const UploadPage: React.FC = () => {
         supportingFiles,
         (percent) => {
           setUploadProgress(percent);
-          if (percent >= 80) {
-            setUploadStatus('processing');
-          }
+          if (percent >= 45) setUploadStatus('processing');
         }
       );
 
+      // Load document directly from the response — no re-fetch needed.
+      // This guarantees the analysis is in context before navigation.
+      await loadDocumentWithAnalysis(document, analysis);
       await refreshDocumentsList();
-      await loadDocument(document.id);
       setUploadStatus('success');
 
-      // Navigate to analysis page
       setTimeout(() => {
         navigate(`/documents/${document.id}/analysis`);
-      }, 500);
+      }, 400);
 
     } catch (err: any) {
       setUploadStatus('error');
