@@ -5,6 +5,7 @@ import { useDocument } from '../context/DocumentContext';
 import { uploadDocument } from '../services/documentService';
 import { LegalDocument, DocumentAnalysis } from '../types';
 import { Button } from '../components/common/Button';
+import { AnalyzingLoader } from '../components/upload/AnalyzingLoader';
 import { formatBytes } from '../lib/utils';
 import { 
   UploadCloud, 
@@ -256,20 +257,9 @@ export const UploadPage: React.FC = () => {
           </div>
         )}
 
-        {/* Upload & Processing Status Progress */}
-        {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
-          <div className="space-y-2 pt-2">
-            <div className="flex justify-between text-xs font-semibold text-charcoal">
-              <span>{uploadStatus === 'uploading' ? t.uploadingText : t.processingText}</span>
-              <span className="font-mono">{uploadProgress}%</span>
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-              <div
-                className="bg-brand-600 h-full rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-          </div>
+        {/* Upload & Processing Status: staged, time-driven progress (not a fake instant jump) */}
+        {(uploadStatus === 'uploading' || uploadStatus === 'processing' || uploadStatus === 'success') && (
+          <AnalyzingLoader isComplete={uploadStatus === 'success'} fileName={primaryFile?.name} />
         )}
 
         {/* Main CTA Action */}
