@@ -4,12 +4,14 @@ from app.core.config import Settings, get_settings
 from app.core.dependencies import (
     get_analysis_service,
     get_document_processing_service,
+    get_document_store,
     get_validation_service,
 )
 from app.core.exceptions import AnalysisNotAvailableError, UnsupportedDocumentError
 from app.schemas.analysis import DocumentAnalysis
 from app.services.analysis import AnalysisService
 from app.services.document_processing import DocumentProcessingService
+from app.services.document_store import DocumentStore
 from app.services.validation import ValidationService
 
 router = APIRouter(tags=["analysis"])
@@ -31,12 +33,16 @@ async def analyze_document(
     document_processing: DocumentProcessingService = Depends(get_document_processing_service),
     validation_service: ValidationService = Depends(get_validation_service),
     analysis_service: AnalysisService = Depends(get_analysis_service),
+    store: DocumentStore = Depends(get_document_store),
 ) -> DocumentAnalysis:
     """Accept an uploaded document and return its structured analysis.
 
     This endpoint never fabricates a result: if the file can't be parsed,
     fails validation, or no analysis provider is configured, it returns a
     proper error response instead of a fake success payload.
+
+    On success, saves the (Document, DocumentAnalysis) pair in the in-process
+    DocumentStore so that POST /api/chat can access document context by ID.
     """
     content = await file.read()
 
@@ -63,9 +69,14 @@ async def analyze_document(
         )
 
     try:
-        return analysis_service.analyze(document, validation)
+        analysis = analysis_service.analyze(document, validation)
     except AnalysisNotAvailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=str(exc),
         ) from exc
+
+    # Save to document store so /api/chat can look up this document by ID
+    store.save(document, analysis)
+
+    return analysis

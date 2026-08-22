@@ -1,5 +1,6 @@
 """Application configuration, loaded from environment variables / .env."""
 from functools import lru_cache
+from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,6 +28,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173"
 
     max_upload_size_mb: int = Field(default=20, gt=0)
+
+    # Google Gemini API key — optional. When absent, LLM features are disabled and
+    # the deterministic analysis pipeline is used. NEVER expose this to the frontend.
+    gemini_api_key: Optional[str] = Field(default=None)
 
     @property
     def cors_origin_list(self) -> list[str]:
