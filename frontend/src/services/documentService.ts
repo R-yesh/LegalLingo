@@ -75,74 +75,40 @@ export async function uploadDocument(
 
   if (onProgress) onProgress(40);
 
-  let backendAnalysis: DocumentAnalysis | null = null;
-  let backendError: string | null = null;
-
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE_URL}/analyze`, {
+    response = await fetch(`${API_BASE_URL}/analyze`, {
       method: 'POST',
       body: formData,
     });
-
-    if (onProgress) onProgress(75);
-
-    if (response.ok) {
-      const rawData = await response.json();
-      // documentId from backend is the document's own id
-      const docId = rawData.documentId ?? `doc-${Date.now()}`;
-      backendAnalysis = normaliseBackendAnalysis(rawData, docId);
-      console.info('[LegalLingo] Backend analysis received, documentId:', docId);
-    } else {
-      const errorData = await response.json().catch(() => ({ detail: 'Upload error' }));
-      backendError = typeof errorData.detail === 'string'
-        ? errorData.detail
-        : JSON.stringify(errorData.detail);
-      console.warn('[LegalLingo] Backend error:', response.status, backendError);
-    }
   } catch (netError) {
-    console.warn('[LegalLingo] Backend unreachable, using client-side analysis:', netError);
+    // Backend unreachable. Never fabricate a fake "successful" analysis here —
+    // the UI must show a real error state instead (see frontend/index.md: "Do
+    // NOT create fake successful analysis" / "UI should expect real API responses").
+    console.error('[LegalLingo] Backend unreachable:', netError);
+    throw new Error(
+      'Could not reach the LegalLingo server. Please check your connection and try again.'
+    );
   }
 
-  if (onProgress) onProgress(100);
+  if (onProgress) onProgress(75);
 
-  if (backendError) {
-    // Surface the backend error to the upload page so the user sees a real message
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Upload error' }));
+    const backendError = typeof errorData.detail === 'string'
+      ? errorData.detail
+      : JSON.stringify(errorData.detail);
+    console.warn('[LegalLingo] Backend error:', response.status, backendError);
+    if (onProgress) onProgress(100);
     throw new Error(`Analysis failed: ${backendError}`);
   }
 
-  if (backendAnalysis) {
-    // Use the document ID from the backend analysis
-    const docId = backendAnalysis.documentId;
+  const rawData = await response.json();
+  const docId = rawData.documentId ?? `doc-${Date.now()}`;
+  const backendAnalysis = normaliseBackendAnalysis(rawData, docId);
+  console.info('[LegalLingo] Backend analysis received, documentId:', docId);
 
-    const document: LegalDocument = {
-      id: docId,
-      filename: file.name,
-      fileSize: file.size,
-      fileType: file.type || 'application/pdf',
-      documentType: 'Sale Agreement',
-      uploadedAt: new Date().toISOString(),
-      status: 'completed',
-      attentionCount: backendAnalysis.attentionItems?.length ?? 0,
-      isSample: false,
-    };
-
-    // Persist to localStorage under the backend-assigned docId
-    const docs = getStoredDocs();
-    docs.unshift(document);
-    saveStoredDocs(docs);
-
-    const analyses = getStoredAnalyses();
-    analyses[docId] = backendAnalysis;
-    saveStoredAnalyses(analyses);
-
-    return { document, analysis: backendAnalysis };
-  }
-
-  // ------------------------------------------------------------------
-  // Fallback: backend unavailable → rich client-side analysis stub
-  // ------------------------------------------------------------------
-  const docId = `doc-${Date.now()}`;
-  const analysisId = `analysis-${Date.now()}`;
+  if (onProgress) onProgress(100);
 
   const document: LegalDocument = {
     id: docId,
@@ -152,74 +118,20 @@ export async function uploadDocument(
     documentType: 'Sale Agreement',
     uploadedAt: new Date().toISOString(),
     status: 'completed',
-    attentionCount: 2,
+    attentionCount: backendAnalysis.attentionItems?.length ?? 0,
     isSample: false,
   };
 
-  const analysis: DocumentAnalysis = {
-    id: analysisId,
-    documentId: docId,
-    summary: {
-      en: `Uploaded agreement "${file.name}" with ${supportingFiles.length} supporting attachment(s). Document has been processed and is ready for comprehensive clause verification.`,
-      hi: `अपलोड किया गया अनुबंध "${file.name}" (${supportingFiles.length} सहायक फ़ाइलों के साथ)। दस्तावेज़ संसाधित हो गया है।`,
-      mr: `अपलोड केलेला करार "${file.name}" (${supportingFiles.length} पूरक कागदपत्रांसह). दस्तऐवजाचे विश्लेषण पूर्ण झाले.`,
-    },
-    healthScore: 82,
-    parties: [
-      { name: 'First Party / Vendor', role: 'Seller / First Party', idNumber: 'Identity Document Attached', address: 'Registered Premises Address' },
-      { name: 'Second Party / Purchaser', role: 'Buyer / Second Party', idNumber: 'Identity Document Attached', address: 'Purchaser Residence Address' },
-    ],
-    extractedFields: [
-      { id: 'f-1', label: 'File Name', value: file.name, category: 'property', confidence: 0.99, pageNumber: 1, verified: true },
-      { id: 'f-2', label: 'File Size', value: `${(file.size / (1024 * 1024)).toFixed(2)} MB`, category: 'financial', confidence: 0.99, pageNumber: 1, verified: true },
-      { id: 'f-3', label: 'Agreement Type', value: 'Registered Agreement for Sale', category: 'legal', confidence: 0.95, pageNumber: 1, verified: true },
-    ],
-    financialDetails: {
-      totalAmount: 'Subject to extracted schedule',
-      advancePaid: 'Extracted from bank receipt',
-      balanceDue: 'Payable at registration',
-      paymentMode: 'Bank RTGS / DD',
-    },
-    importantDates: [
-      { label: 'Upload Date', date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }), description: 'Uploaded by citizen for LegalLingo analysis.' },
-    ],
-    attentionItems: [
-      {
-        id: 'att-upl-1', clauseId: 'cl-upl-1',
-        title: { en: 'Encumbrance Certificate & Prior Title Chain Verification', hi: 'भार प्रमाण पत्र और पूर्व स्वामित्व श्रृंखला सत्यापन', mr: 'बोजा दाखला आणि मागील मालकी हक्क पडताळणी' },
-        severity: 'HIGH ATTENTION',
-        shortExplanation: { en: 'Verify 30-year Search Report ensuring no previous mortgage exists.', hi: '30 साल की सर्च रिपोर्ट सत्यापित करें।', mr: '३० वर्षांचा शोध अहवाल तपासा.' },
-        whyItMatters: { en: 'Protects buyer against undeclared bank attachments or family partition suits.', hi: 'खरीदार को अघोषित बैंक कुर्की से सुरक्षित रखता है।', mr: 'खरेदीदाराचे जुन्या बँक कर्जांपासून संरक्षण करते.' },
-        recommendedAction: { en: 'Obtain Index-II extract and 30-year non-encumbrance certificate from Sub-Registrar.', hi: 'उप-पंजीयक से इंडेक्स-II प्राप्त करें।', mr: 'दुय्यम निबंधकांकडून इंडेक्स-२ मिळवा.' },
-        evidencePage: 1, evidenceClause: 'Clause 1.2', confidence: 0.93,
-      },
-    ],
-    clauses: [
-      {
-        id: 'cl-upl-1', clauseNumber: '1.2', title: 'Title Covenant & Encumbrance Free Assurance',
-        originalText: 'The Vendor hereby warrants and covenants that the Vendor holds marketable and unencumbered title, free from any mortgage, charge, lien, claim or demand whatsoever.',
-        simpleMeaning: { en: 'The seller promises they are the sole owner and the property is not mortgaged.', hi: 'विक्रेता वादा करता है कि वह एकमात्र मालिक है और संपत्ति गिरवी नहीं है।', mr: 'विक्रेता हमी देतो की मालमत्ता कोणत्याही बँकेत गहाण नाही.' },
-        whyItMatters: { en: 'Gives buyer legal protection if a third party claims rights later.', hi: 'यदि तीसरा पक्ष बाद में दावा करता है तो खरीदार को कानूनी सुरक्षा देता है।', mr: 'नंतर एखाद्या बँकेने दावा केल्यास खरेदीदाराला संरक्षण मिळते.' },
-        whatToVerify: { en: 'Obtain 30-year search report from an advocate and verify on IGR portal.', hi: 'वकील से 30 साल की सर्च रिपोर्ट प्राप्त करें।', mr: 'वकिलांकडून ३० वर्षांचा शोध अहवाल घ्या.' },
-        severity: 'HIGH ATTENTION', pageNumber: 1, confidence: 0.93, category: 'title',
-      },
-    ],
-    citizenChecklist: [
-      { id: 'chk-upl-1', title: 'Verify Encumbrance Certificate (Index II)', description: 'Check official registrar portal to confirm no active bank attachments.', status: 'pending', requiredDocument: 'Index II' },
-      { id: 'chk-upl-2', title: 'Read the Full Original Document', description: 'This automated summary is a starting point — read the complete document yourself.', status: 'pending' },
-    ],
-    analyzedAt: new Date().toISOString(),
-  };
-
+  // Persist to localStorage under the backend-assigned docId
   const docs = getStoredDocs();
   docs.unshift(document);
   saveStoredDocs(docs);
 
   const analyses = getStoredAnalyses();
-  analyses[docId] = analysis;
+  analyses[docId] = backendAnalysis;
   saveStoredAnalyses(analyses);
 
-  return { document, analysis };
+  return { document, analysis: backendAnalysis };
 }
 
 export async function getDocuments(): Promise<LegalDocument[]> {

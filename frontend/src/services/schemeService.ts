@@ -1,5 +1,5 @@
 import { Scheme } from '../types';
-import { SAMPLE_SCHEMES } from '../data/sampleDocument';
+import { API_BASE_URL } from './api';
 
 export interface SchemeFilters {
   state?: string;
@@ -8,14 +8,27 @@ export interface SchemeFilters {
   areaType?: string;
 }
 
+/**
+ * Fetches the welfare-scheme catalogue from the backend (GET /api/schemes).
+ * Throws on failure — callers (SchemesPage) show a real error state rather
+ * than silently falling back to fabricated data.
+ */
 export async function getSchemes(filters?: SchemeFilters): Promise<Scheme[]> {
-  await new Promise(r => setTimeout(r, 200));
+  const params = new URLSearchParams();
+  if (filters?.state) params.set('state', filters.state);
+  if (filters?.occupation) params.set('occupation', filters.occupation);
+  if (filters?.incomeBracket) params.set('incomeBracket', filters.incomeBracket);
+  if (filters?.areaType) params.set('areaType', filters.areaType);
 
-  let results = [...SAMPLE_SCHEMES];
+  const query = params.toString();
+  const response = await fetch(`${API_BASE_URL}/schemes${query ? `?${query}` : ''}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
 
-  if (filters?.state && filters.state !== 'All') {
-    results = results.filter(s => s.state === 'All India' || s.state.toLowerCase() === filters.state?.toLowerCase());
+  if (!response.ok) {
+    throw new Error(`Failed to load schemes (status ${response.status}).`);
   }
 
-  return results;
+  return response.json();
 }

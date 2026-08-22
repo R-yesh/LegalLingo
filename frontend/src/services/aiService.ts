@@ -1,4 +1,5 @@
 import { AIMessage, Language, Clause } from '../types';
+import { API_BASE_URL } from './api';
 
 export interface AISendMessageOptions {
   documentId?: string;
@@ -8,82 +9,107 @@ export interface AISendMessageOptions {
   history: AIMessage[];
 }
 
-export async function sendAIMessage(
-  query: string,
-  options: AISendMessageOptions
-): Promise<AIMessage> {
-  // Simulate network delay for AI processing
-  await new Promise(r => setTimeout(r, 600));
+interface ChatResponsePayload {
+  answer: string;
+  evidence: string;
+  pageNumber: number | null;
+  clauseNumber: string | null;
+  language: Language;
+  llmUsed: boolean;
+}
 
-  const lang = options.language;
-  const activeClause = options.activeClause;
+const _NO_DOCUMENT_MESSAGE: Record<Language, string> = {
+  en: 'Please upload or open a document first — I can only answer questions grounded in a specific document.',
+  hi: 'कृपया पहले कोई दस्तावेज़ अपलोड या खोलें — मैं केवल किसी विशिष्ट दस्तावेज़ पर आधारित प्रश्नों के उत्तर दे सकता हूँ।',
+  mr: 'कृपया आधी एखादे दस्तऐवज अपलोड करा किंवा उघडा — मी फक्त विशिष्ट दस्तऐवजावर आधारित प्रश्नांची उत्तरे देऊ शकतो.',
+};
 
-  let responseContent = '';
-  const followUps: string[] = [];
+const _NETWORK_ERROR_MESSAGE: Record<Language, string> = {
+  en: 'Could not reach the LegalLingo server right now. Please try again in a moment.',
+  hi: 'अभी LegalLingo सर्वर से संपर्क नहीं हो सका। कृपया थोड़ी देर बाद पुनः प्रयास करें।',
+  mr: 'सध्या LegalLingo सर्व्हरशी संपर्क होऊ शकला नाही. कृपया थोड्या वेळाने पुन्हा प्रयत्न करा.',
+};
 
-  if (activeClause) {
-    if (lang === 'hi') {
-      responseContent = `इस शर्त "${activeClause.clauseNumber} - ${activeClause.title}" के संबंध में: यह शर्त यह सुनिश्चित करती है कि ${activeClause.simpleMeaning.hi}। आपको सलाह दी जाती है कि: ${activeClause.whatToVerify.hi}।`;
-      followUps.push('क्या यह शर्त दोनों पक्षों पर समान रूप से लागू होती है?', 'यदि विक्रेता इस शर्त का उल्लंघन करता है तो क्या करें?');
-    } else if (lang === 'mr') {
-      responseContent = `या कलम "${activeClause.clauseNumber} - ${activeClause.title}" बाबत: हे कलम असे स्पष्ट करते की ${activeClause.simpleMeaning.mr}। आपल्याला सल्ला देण्यात येतो की: ${activeClause.whatToVerify.mr}।`;
-      followUps.push('या कलमाचा भंग झाल्यास कायदेशीर उपाय काय आहेत?', 'दुय्यम निबंधक कार्यालयात काय पडताळावे?');
-    } else {
-      responseContent = `Regarding Clause ${activeClause.clauseNumber} ("${activeClause.title}"): ${activeClause.simpleMeaning.en} Why it matters: ${activeClause.whyItMatters.en} Recommended action: ${activeClause.whatToVerify.en}`;
-      followUps.push('Does this clause impose any financial liability?', 'How do I request an amendment to this clause?');
-    }
-  } else {
-    // General document query
-    const lower = query.toLowerCase();
-    if (lower.includes('penalty') || lower.includes('interest') || lower.includes('fine') || lower.includes('जुर्माना') || lower.includes('दंड')) {
-      if (lang === 'hi') {
-        responseContent = `अनुबंध के विश्लेषण के अनुसार, कब्जा सौंपने में 90 दिनों की छूट अवधि दी गई है जिसमें विक्रेता पर कोई जुर्माना नहीं लगेगा। खरीदार के लिए विलंब भुगतान पर मानक बैंक दर से ब्याज की शर्त हो सकती है।`;
-        followUps.push('क्या मैं विक्रेता से विलंब मुआवजा मांग सकता हूँ?', 'बकाया राशि पर ब्याज दर क्या है?');
-      } else if (lang === 'mr') {
-        responseContent = `कराराच्या विश्लेषणानुसार, ताबा देण्यामध्ये ९० दिवसांची सवलत दिली आहे ज्यासाठी कोणताही दंड आकारला जाणार नाही. खरेदीदाराने देयक वेळेत न दिल्यास व्याज आकारणीची तरतूद असू शकते.`;
-        followUps.push('मी विलंबाची नुकसानभरपाई कशी मागू शकतो?', 'थकीत रकमेवर किती व्याज आहे?');
-      } else {
-        responseContent = `Based on the contract terms, the seller holds a 90-day grace period for possession without penalties. Ensure you negotiate reciprocal penalty clauses for delayed possession before signing.`;
-        followUps.push('What is the recommended delay penalty rate?', 'Where is the grace period mentioned in the deed?');
-      }
-    } else if (lower.includes('verify') || lower.includes('check') || lower.includes('document') || lower.includes('सत्यापन') || lower.includes('पडताळणी')) {
-      if (lang === 'hi') {
-        responseContent = `हस्ताक्षर करने से पहले 3 मुख्य चीजें अवश्य जांचें: 1) 30 साल की सर्च रिपोर्ट और भार प्रमाण पत्र (EC), 2) नगर निगम की अद्यतन संपत्ति कर शून्य बकाया रसीद, 3) हाउसिंग सोसायटी का अनापत्ति प्रमाण पत्र (NOC)।`;
-        followUps.push('भार प्रमाण पत्र (EC) कहाँ से मिलता है?', 'सोसायटी एनओसी में क्या लिखा होना चाहिए?');
-      } else if (lang === 'mr') {
-        responseContent = `स्वाक्षरीपूर्वी ३ महत्त्वाच्या बाबी तपासा: १) ३० वर्षांचा शोध अहवाल आणि बोजा दाखला (Index II), २) महापालिकेची शून्य थकबाकी कर पावती, ३) गृहनिर्माण संस्थेचे ना-हरकत प्रमाणपत्र (NOC).`;
-        followUps.push('बोजा दाखला कसा मिळवायचा?', 'सोसायटी एनओसीसाठी काय आवश्यक आहे?');
-      } else {
-        responseContent = `Critical pre-signing checklist: 1) 30-year Search Report & Encumbrance Certificate (Index II), 2) Latest Municipal Property Tax "Zero Dues" receipt, 3) Original Housing Society Transfer NOC.`;
-        followUps.push('Where can I download the Index II extract?', 'What happens if society NOC is delayed?');
-      }
-    } else {
-      if (lang === 'hi') {
-        responseContent = `लीगल लिंगो ने आपके अनुबंध का विश्लेषण किया है। आप किसी भी विशिष्ट शर्त, पक्षकारों के दायित्वों, भुगतान अनुसूची, या सरकारी लाभों के बारे में पूछ सकते हैं।`;
-        followUps.push('मुख्य कानूनी जोखिम क्या हैं?', 'कब्जे की निर्धारित तिथि क्या है?');
-      } else if (lang === 'mr') {
-        responseContent = `लीगल लिंगोने आपल्या कराराचे संपूर्ण विश्लेषण केले आहे. आपण कोणत्याही विशिष्ट अटी, देयके किंवा शासकीय योजनांबद्दल थेट विचारू शकता.`;
-        followUps.push('मुख्य कायदेशीर जोखीम काय आहेत?', 'ताबा मिळण्याची शेवटची तारीख कोणती आहे?');
-      } else {
-        responseContent = `LegalLingo has analyzed this legal document. You can ask about specific clauses, party obligations, payment milestones, possession timelines, or eligible government welfare subsidies.`;
-        followUps.push('What are the top attention items?', 'Explain the payment milestones');
-      }
-    }
-  }
-
-  const aiMessage: AIMessage = {
+function buildAssistantMessage(
+  content: string,
+  language: Language,
+  activeClause?: Clause | null,
+  suggestedFollowUps?: string[]
+): AIMessage {
+  return {
     id: `msg-${Date.now()}`,
     sender: 'assistant',
-    content: responseContent,
+    content,
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    language: lang,
+    language,
     clauseReference: activeClause ? {
       clauseId: activeClause.id,
       clauseNumber: activeClause.clauseNumber,
       title: activeClause.title,
     } : undefined,
-    suggestedFollowUps: followUps,
+    suggestedFollowUps,
   };
+}
 
-  return aiMessage;
+/**
+ * Sends a citizen question to the real backend (POST /api/chat), grounded in
+ * the previously-analyzed document held in the server's DocumentStore.
+ *
+ * Falls back to a clear, honest local message (never a fabricated answer)
+ * when there's no document context yet or the request fails.
+ */
+export async function sendAIMessage(
+  query: string,
+  options: AISendMessageOptions
+): Promise<AIMessage> {
+  const { documentId, clauseId, activeClause, language } = options;
+
+  if (!documentId) {
+    return buildAssistantMessage(_NO_DOCUMENT_MESSAGE[language] || _NO_DOCUMENT_MESSAGE.en, language);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        documentId,
+        question: query,
+        language,
+        clauseId: clauseId ?? null,
+      }),
+    });
+  } catch (netError) {
+    console.warn('[LegalLingo] /api/chat unreachable:', netError);
+    return buildAssistantMessage(_NETWORK_ERROR_MESSAGE[language] || _NETWORK_ERROR_MESSAGE.en, language, activeClause);
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Chat request failed' }));
+    const detail = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
+    console.warn('[LegalLingo] /api/chat error:', response.status, detail);
+
+    if (response.status === 404) {
+      // Document not found in this server session (e.g. server restarted since upload)
+      const notFoundMsg: Record<Language, string> = {
+        en: 'This document is no longer available on the server (it may have restarted). Please re-upload it to keep asking questions.',
+        hi: 'यह दस्तावेज़ अब सर्वर पर उपलब्ध नहीं है (सर्वर पुनरारंभ हुआ हो सकता है)। प्रश्न पूछना जारी रखने के लिए कृपया इसे फिर से अपलोड करें।',
+        mr: 'हे दस्तऐवज आता सर्व्हरवर उपलब्ध नाही (सर्व्हर रीस्टार्ट झाला असावा). प्रश्न विचारणे सुरू ठेवण्यासाठी कृपया ते पुन्हा अपलोड करा.',
+      };
+      return buildAssistantMessage(notFoundMsg[language] || notFoundMsg.en, language, activeClause);
+    }
+
+    return buildAssistantMessage(_NETWORK_ERROR_MESSAGE[language] || _NETWORK_ERROR_MESSAGE.en, language, activeClause);
+  }
+
+  const raw: ChatResponsePayload = await response.json();
+
+  let content = raw.answer;
+  if (raw.evidence) {
+    content += `\n\n"${raw.evidence}"`;
+    if (raw.pageNumber) content += ` (p. ${raw.pageNumber})`;
+  }
+
+  return buildAssistantMessage(content, raw.language || language, activeClause);
 }

@@ -24,19 +24,25 @@ export const SchemesPage: React.FC = () => {
   const [selectedOccupation, setSelectedOccupation] = useState('All');
   const [selectedIncome, setSelectedIncome] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     const fetch = async () => {
       setIsLoading(true);
+      setLoadError(null);
       try {
         const data = await getSchemes({ state: selectedState });
         setSchemes(data);
+      } catch (err) {
+        setSchemes([]);
+        setLoadError(err instanceof Error ? err.message : 'Failed to load schemes.');
       } finally {
         setIsLoading(false);
       }
     };
     fetch();
-  }, [selectedState]);
+  }, [selectedState, retryToken]);
 
   return (
     <div className="space-y-8 py-4">
@@ -115,7 +121,21 @@ export const SchemesPage: React.FC = () => {
       </div>
 
       {/* Schemes List */}
-      {schemes.length === 0 ? (
+      {isLoading ? (
+        <div className="bg-surface rounded-2xl border border-slate-200/80 p-8 text-center text-steel">
+          Loading schemes…
+        </div>
+      ) : loadError ? (
+        <div className="bg-rose-50 rounded-2xl border border-rose-200 p-8 text-center space-y-3">
+          <p className="text-rose-700 text-sm font-medium">{loadError}</p>
+          <button
+            onClick={() => setRetryToken((n) => n + 1)}
+            className="text-xs font-bold text-rose-700 underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </div>
+      ) : schemes.length === 0 ? (
         <div className="bg-surface rounded-2xl border border-slate-200/80 p-8 text-center text-steel">
           {t.noSchemesFound}
         </div>

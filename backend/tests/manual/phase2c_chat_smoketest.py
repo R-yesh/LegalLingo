@@ -1,4 +1,11 @@
-"""Phase 2C integration tests: Grounded LLM integration.
+"""Phase 2C manual smoke test: Grounded LLM integration.
+
+NOT part of the pytest suite (deliberately not named test_*.py) — it makes
+live calls to the Gemini API and reassigns sys.stdout, which would corrupt
+pytest's output capture if collected automatically. Run it directly:
+
+    cd backend
+    GEMINI_API_KEY=your-key python tests/manual/phase2c_chat_smoketest.py
 
 Tests:
   T1. English question about document
