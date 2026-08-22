@@ -18,6 +18,10 @@ class ExtractedField(CamelModel):
     confidence: Optional[float] = Field(default=None, ge=0, le=1)
     page_number: Optional[int] = Field(default=None, ge=1)
     verified: Optional[bool] = None
+    # Additive beyond the frontend's ExtractedField shape: a short excerpt of
+    # the source text the value was derived from, when extraction found one.
+    # Absent (None) rather than fabricated when there is no textual evidence.
+    evidence_snippet: Optional[str] = None
 
 
 class Clause(CamelModel):

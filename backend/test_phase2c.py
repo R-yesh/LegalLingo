@@ -9,9 +9,12 @@ Tests:
   T6. Missing API key -> offline deterministic response
   T7. Injection pattern in question -> request rejected
 """
+import io
 import os
 import sys
-import json
+
+# Force UTF-8 output on Windows so Hindi/Marathi chars don't crash
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 # ----- setup: run from backend/ with API key -----
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
