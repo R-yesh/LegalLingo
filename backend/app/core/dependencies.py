@@ -8,6 +8,11 @@ LLM wiring logic:
   - If GEMINI_API_KEY is absent, UnavailableLLMService is used (no LLM calls).
   - LLMBackedAnalysisService automatically falls back to deterministic output
     when the LLM is unavailable — no fabrication, no sample data.
+
+OCR wiring logic mirrors the LLM wiring: GeminiOcrService is used when
+GEMINI_API_KEY is present, else UnavailableOcrService (OCR fallback simply
+does not trigger, and /api/analyze behaves exactly as it did before OCR
+was added).
 """
 from functools import lru_cache
 
@@ -18,6 +23,7 @@ from app.services.llm.gemini import LLMService, build_llm_service
 from app.services.llm_analysis import LLMBackedAnalysisService
 from app.services.analysis import AnalysisService
 from app.services.document_processing import DocumentProcessingService, PdfDocumentProcessingService
+from app.services.ocr.gemini_ocr import OcrService, build_ocr_service
 from app.services.validation import BasicValidationService, ValidationService
 
 # Singleton document store (lives for the lifetime of this process)
@@ -38,6 +44,12 @@ def get_validation_service() -> ValidationService:
 def get_llm_service() -> LLMService:
     settings = get_settings()
     return build_llm_service(settings.gemini_api_key)
+
+
+@lru_cache
+def get_ocr_service() -> OcrService:
+    settings = get_settings()
+    return build_ocr_service(settings.gemini_api_key)
 
 
 @lru_cache
